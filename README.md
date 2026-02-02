@@ -33,7 +33,7 @@
 
 ## 3. 디렉토리 구조
 ```
-services/backend-spring/
+services-a/backend/
 ├── build.gradle
 ├── .env
 ├── src/main/java/com/exit8/
@@ -305,8 +305,61 @@ docker run -d \
 ```
 
 ---
+## 12. 로컬 Docker 테스트 절차
 
-## 12. 앞으로의 확장 / 완료 현황 정리
+1. Gradle Wrapper를 제대로 생성해서 Git에 포함
+```
+.\gradlew.bat wrapper --gradle-version 8.5
+```
+
+2. 이미지 빌드 (캐시 제거)
+```
+docker build --no-cache -t backend-spring:test .
+```
+
+3.  실행
+```
+docker run -d \
+  --name backend-spring \
+  -p 8080:8080 \
+  --network exit8-net \
+  -e SPRING_PROFILES_ACTIVE=docker \
+  backend-spring:test
+```
+
+4. 확인
+```
+curl http://localhost:8080/actuator/health
+```
+
+- 정상 응답 예:
+```
+{"status":"UP"}
+```
+
+### 공용 네트워크 생성
+```
+docker network create exit8-net
+```
+
+- 기존 DB 컨테이너를 네트워크에 연결
+```
+docker network connect exit8-net db-postgres
+docker network connect exit8-net db-redis
+```
+
+- backend 실행 (같은 네트워크)
+```
+docker run -d \
+  --name backend-spring \
+  -p 8080:8080 \
+  --network exit8-net \
+  -e SPRING_PROFILES_ACTIVE=docker \
+  backend-spring:test
+```
+---
+
+## 13. 앞으로의 확장 / 완료 현황 정리
 
 ### ✅ 이미 완료된 항목
 1. Resilience4j 기반 차단 시나리오
