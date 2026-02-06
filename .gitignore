@@ -1,4 +1,20 @@
+# env
 .env
+
+# Gradle
 .gradle/
 build/
+
+# Java build artifacts
+bin/
 out/
+*.class
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# shell
+deploy.bat
+deploy.ps1

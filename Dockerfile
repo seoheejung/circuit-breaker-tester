@@ -1,5 +1,5 @@
 # ---------- build stage ----------
-FROM eclipse-temurin:17-jdk-alpine AS build
+FROM --platform=linux/amd64 eclipse-temurin:17-jdk-alpine AS build
 
 WORKDIR /app
 
@@ -20,12 +20,29 @@ COPY src src
 RUN ./gradlew bootJar --no-daemon
 
 # ---------- runtime stage ----------
-FROM eclipse-temurin:17-jre-alpine
+FROM --platform=linux/amd64 eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
-# Spring Boot bootJar만 명시적으로 사용
-COPY --from=build /app/build/libs/*.jar app.jar
+# 비root 사용자 생성 (Alpine 명령어 사용)
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# 로그 디렉터리 생성 + 권한
+RUN mkdir -p /app/logs && \
+    chown -R appuser:appgroup /app
+
+# curl 설치 (healthcheck용)
+RUN apk add --no-cache curl
+
+# Spring Boot bootJar 복사
+COPY --from=build --chown=appuser:appgroup /app/build/libs/*.jar app.jar
+
+# 비root 사용자로 전환
+USER appuser
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8080/actuator/health || exit 1
 
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
