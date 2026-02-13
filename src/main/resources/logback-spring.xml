@@ -28,6 +28,7 @@
                 <message/>
                 <mdc/>
             </providers>
+            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
         </encoder>
     </appender>
 

@@ -10,7 +10,7 @@ version = '0.0.1-SNAPSHOT'
 
 java {
     toolchain {
-        // Java 17 혹은 21 모두 가능합니다.
+        // Java 17 혹은 21 모두 가능
         languageVersion = JavaLanguageVersion.of(17)
     }
 }
@@ -20,7 +20,11 @@ repositories {
 }
 
 bootRun {
-    // .env 있으면 → .env, 없으면 → local
+    // 애플리케이션의 표준 출력(stdout)과 오류(stderr)를 현재 터미널(System.out / System.err)로 직접 연결
+    standardOutput = System.out
+    errorOutput = System.err
+
+    // .env 있으면 → .env 로드
     def envFile = file(".env")
     if (envFile.exists()) {
         envFile.readLines().each { line ->
@@ -31,9 +35,18 @@ bootRun {
         }
     }
 
+    // Spring Profile (기본값: local)
     environment "SPRING_PROFILES_ACTIVE",
             System.getenv("SPRING_PROFILES_ACTIVE") ?: "local"
+
+    // Vault 필수 환경 변수 (없으면 기본값)
+    environment "VAULT_URI",
+            System.getenv("VAULT_URI") ?: "http://localhost:8200"
+
+    environment "VAULT_TOKEN",
+            System.getenv("VAULT_TOKEN") ?: "root-token"
 }
+
 
 dependencies {
     // Web & AOP
@@ -49,7 +62,6 @@ dependencies {
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'org.springframework.session:spring-session-data-redis'
 
-
     // Observability (모니터링)
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'
@@ -62,8 +74,27 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
     // Logstash Logback Encoder 추가
-    implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+    implementation 'net.logstash.logback:logstash-logback-encoder:9.0'
+
+    // vault
+    implementation 'org.springframework.cloud:spring-cloud-starter-vault-config'
+
+    // Bucket4j (Servlet / In-memory 실험용)
+    implementation 'com.bucket4j:bucket4j-core:8.0.1'
+
+    // 1. Vault가 서버와 JSON으로 통신할 때 필요한 RestTemplate 및 Jackson 변환기 지원
+    implementation 'org.springframework.boot:spring-boot-starter-json'
+
+    // 2. 만약 위 스타터로 해결이 안 된다면 명시적으로 spring-web 추가 (이미 있을 확률이 높지만 재확인)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
 }
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:2024.0.0"
+    }
+}
+
 
 tasks.named('test') {
     useJUnitPlatform()

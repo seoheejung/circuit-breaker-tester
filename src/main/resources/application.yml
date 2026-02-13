@@ -10,6 +10,27 @@ spring:
       hibernate:
         format_sql: true
 
+  # Vault 설정을 최우선으로 가져오도록 명시
+  config:
+    import: "optional:vault://"
+
+  cloud:
+    vault:
+      uri: ${VAULT_URI:http://vault:8200}
+      authentication: APPROLE
+      app-role:
+        role-id: ${VAULT_ROLE_ID}
+        secret-id: ${VAULT_SECRET_ID}
+        role: service-a-backend
+        app-role-path: approle
+      kv:
+        enabled: true
+        backend: secret
+        application-name: service-a-backend
+        # 공통 경로(/application) 탐색을 비활성화
+        default-context: service-a-backend
+        profiles: []
+
 server:
   port: 8080
 
@@ -49,3 +70,7 @@ resilience4j.circuitbreaker:
         - java.lang.Exception
       # 성공으로 간주할 예외 (없음)
       ignore-exceptions: []
+
+# Rate Limit 적용
+rate-limit:
+  enabled: false # true

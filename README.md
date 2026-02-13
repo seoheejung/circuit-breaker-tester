@@ -18,8 +18,8 @@
 9. [공통 응답 포맷](#9-공통-응답-포맷)
 10. [로깅 전략](#10-로깅-전략)
 11. [Docker 기반 개발 환경](#11-docker-기반-개발-환경)
-12. [로컬 Docker 테스트 절차](#12-로컬-docker-테스트-절차)
-13. [앞으로의 확장 / 완료 현황 정리](#13-앞으로의-확장--완료-현황-정리)
+12. [Vault 연동](#13-Vault-연동)
+13. [앞으로의 확장 / 완료 현황 정리](#14-앞으로의-확장--완료-현황-정리)
 
 ---
 
@@ -92,7 +92,6 @@ services/service-a/backend/
 │   ├── filter/            # HTTP 진입 trace_id 생성
 │   │   └── TraceIdFilter.java
 │   │
-│   │
 │   ├── logging/           # AOP 기반 관측 로깅
 │   │   ├── LogAspect.java                  # LOAD_START / END / FAIL 트리거
 │   │   ├── LogLevelPolicy.java             # INFO / WARN / ERROR 판단
@@ -131,8 +130,11 @@ services/service-a/backend/
 ```
 SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 ```
-- Gradle bootRun에 기본값 local 설정됨
-- 추후 Vault와 연동하면 달라질 수 있음 (.env) 
+- Gradle `bootRun` 기본 프로필은 `local`
+- 실행 환경 구분은 `SPRING_PROFILES_ACTIVE` 기준
+- Vault 연동 여부와 관계없이 프로필 전략은 동일
+- Vault 접근 정보는 실행 시점에 환경 변수로 주입
+  (`VAULT_URI`, `VAULT_TOKEN`)
 
 ---
 
@@ -402,23 +404,6 @@ docker exec -it service-a-backend sh -c "grep test-trace-123 /app/logs/app.log"
 curl -X POST "http://localhost:8080/api/load/cpu?durationMs=1000" -H "X-Trace-Id: test-trace-123"
 ```
 
-4. 로그
-```
-{
-  "@timestamp": "2026-02-06T11:09:40.317+09:00",
-  "level": "INFO",
-  "thread_name": "http-nio-8080-exec-6",
-  "message": "event=LOAD_START method=generateCpuLoad",
-  "trace_id": "test-trace-123"
-}
-{
-  "@timestamp": "2026-02-06T11:09:41.442+09:00",
-  "level": "INFO",
-  "thread_name": "http-nio-8080-exec-6",
-  "message": "event=LOAD_END method=generateCpuLoad durationMs=1125",
-  "trace_id": "test-trace-123"
-}
-```
 > ✔ 외부에서 전달된 trace_id(test-trace-123)가 Filter → MDC → AOP → 로그까지 변경 없이 유지됨을 검증한다.
 
 <br>
@@ -433,22 +418,6 @@ curl -X POST "http://localhost:8080/api/load/cpu?durationMs=1000" -H "X-Trace-Id
   - LOAD_START / LOAD_END 로그에 동일한 신규 trace_id가 기록되어야 한다.
   - START와 END 사이에서 trace_id가 달라지면 안 된다.
 
-```
-{
-  "@timestamp": "2026-02-06T11:10:08.109+09:00",
-  "level": "INFO",
-  "thread_name": "http-nio-8080-exec-1",
-  "message": "event=LOAD_START method=generateCpuLoad",
-  "trace_id": "c4fc1fa3-fa11-47a4-987a-90c956a4523a"
-}
-{
-  "@timestamp": "2026-02-06T11:10:18.123+09:00",
-  "level": "INFO",
-  "thread_name": "http-nio-8080-exec-1",
-  "message": "event=LOAD_END method=generateCpuLoad durationMs=10014",
-  "trace_id": "c4fc1fa3-fa11-47a4-987a-90c956a4523a"
-}
-```
 > ✔ trace_id 미존재 요청에서도 요청 단위 추적이 반드시 보장됨을 검증한다.
 
 ---
@@ -500,94 +469,26 @@ management:
 
 ---
 
-## 12. 로컬 Docker 테스트 절차
+## 12. Vault 연동
+- DB 자격 증명을 애플리케이션 외부로 분리하기 위해 Spring Cloud Vault 사용
+- Vault 기반 설정 로딩 구조를 검증
 
-### 공용 네트워크 및 볼륨 생성
-```
-# 네트워크 생성
-docker network create frontend
-docker network create backend
-docker network create db
+### Spring Cloud Vault Client 연동
+- 애플리케이션 기동 시 Vault에서 설정 값을 로드
+- Vault KV(v2)를 Spring PropertySource로 통합
 
-# 데이터 보존을 위한 볼륨 생성 (필요 시)
-docker volume create postgres_data
-docker volume create redis_data
-```
+### DB 자격 증명 완전 외부화
+- spring.datasource.username / password 하드코딩 제거
+- Vault에 저장된 db.username, db.password를 명시적으로 매핑
 
-<br>
+#### 검증 항목
+- Spring Cloud Vault Client 기동 시 Vault 연결 
+- DB 자격 증명 로딩 성공 / 실패 시 기동 결과
 
-### DB 및 인프라 컨테이너 실행 
-- PostgreSQL
-```
--- 비밀번호 없이 생성
-docker run -d --name postgres --network db -p 5432:5432 -e POSTGRES_DB=appdb -e POSTGRES_HOST_AUTH_METHOD=trust postgres:15-alpine
-
-docker exec -it postgres psql -U postgres -d appdb
-
--- 로그인 가능한 유저 생성
-CREATE USER admin WITH PASSWORD password_입력;
-
--- DB 접근 권한 부여
-GRANT CONNECT ON DATABASE appdb TO admin;
-
--- public 스키마 사용 권한
-GRANT USAGE, CREATE ON SCHEMA public TO admin;
-
-```
-
-- Redis
-```
-docker run -d --name redis \
-  --network db \
-  -p 6379:6379 \
-  redis:7-alpine redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-```
-
-<br>
-
-### SpringBoot 서버 도커라이징
-
-1. Gradle Wrapper를 제대로 생성해서 Git에 포함
-```
-# Windows
-.\gradlew.bat wrapper --gradle-version 8.5
-
-# Linux/Mac
-./gradlew wrapper --gradle-version 8.5
-```
-
-2. 이미지 빌드 (캐시 제거)
-```
-docker build --no-cache -t exit8/service-a-backend:test .
-```
-
-3.  실행
-```
-# 1. 기존에 죽어있는 컨테이너 삭제
-docker rm -f service-a-backend
-
-# 2. 처음부터 db 네트워크로 실행
-docker run -d --name service-a-backend \
-  --network db \
-  -p 8080:8080 \
-  -e SPRING_PROFILES_ACTIVE=docker \
-  -e JAVA_OPTS="-Xms256m -Xmx512m" \
-  exit8/service-a-backend:test
-
-# 3. DB 네트워크 추가 연결 (멀티 네트워크 설정)
-docker network connect backend service-a-backend
-
-```
-
-4. 확인
-```
-curl http://localhost:8080/actuator/health
-```
-
-- 정상 응답 예:
-```
-{"status":"UP"}
-```
+### 의도적으로 제외한 범위
+- Secret rotation 
+- Vault Auth (AppRole, Kubernetes 등)
+- Vault HA / TLS 구성
 
 ---
 
@@ -630,7 +531,17 @@ curl http://localhost:8080/actuator/health
    - `logstash-logback-encoder` 적용
    - `trace_id / level / duration / event` 필드 구조화
    - 현재는 텍스트 로그 중심으로 실험, JSON 로그는 병행 가능 상태
-
+8. Vault 연동
+   - Spring Cloud Vault Client 연동 구조 검증 완료
+   - Vault KV(v2) 기반 PostgreSQL 자격 증명 동적 로딩
+     - DB 자격 증명 하드코딩 완전 제거
+   - 실제 Docker 서비스 실행 경로에서 Vault 연동 기동 확인
+   - 운영 고도화(Secret rotation, Auth, HA)는 의도적으로 제외
+9. 외부 부하 테스트 연계
+    - 부하 유발 API 구현
+    - JMeter 연계
+    - 동시 사용자 증가에 따른 DB 커넥션 풀 고갈 시 CircuitBreaker OPEN 시점 분석
+        
 <br>
 
 ### ⏳ 아직 진행하지 않은 항목
@@ -640,35 +551,20 @@ curl http://localhost:8080/actuator/health
    - 향후:
      - `LogAspect → SystemLog` 저장
      - 배치 기반 백업 후 truncate 전략 적용
-2. Vault 연동
-   - Secret rotation 시나리오 실험
-   - DB / Redis 자격 증명 동적 로딩
-   - 현재는 `.env + profile` 기반 단순화
-   - 추후:
-     - Spring Cloud Vault Client 적용
-     - Secret rotation 시나리오 실험
-3. Prometheus 메트릭 확장
+2. Prometheus 메트릭 확장
    - 현재: Actuator 기본 메트릭 + 일부 커스텀
    - 미완:
      - HTTP 요청 수 / 응답 시간 세분화
      - CircuitBreaker 상태 메트릭 명시적 노출
    - 추후:
      - Custom Meter (Timer / Counter) 추가
-4. DB 백업 및 로그 정리 시나리오
+3. DB 백업 및 로그 정리 시나리오
    - 로그 정리 주기
    - 백업 정책 실험
-5. 외부 부하 테스트 연계
-   - 현재: 부하 유발 API만 구현
-   - 미완: 외부 부하 도구 연계
-   - 미완:
-     - JMeter / Locust 연계
-     - 동시 사용자 증가에 따른
-     - DB 커넥션 풀 고갈
-     - CircuitBreaker OPEN 시점 분석
-6. Redis 캐싱 실험
+4. Redis 캐싱 실험
    - READ 시 캐싱 적용
    - Read Replica + Cache 비교 실험
-7. Spring Security 도입
+5. Spring Security 도입
    - 프론트엔드 연동 전 필수 단계
    - 무제한 호출 / 오남용 방지
    - 실험용 API 보호

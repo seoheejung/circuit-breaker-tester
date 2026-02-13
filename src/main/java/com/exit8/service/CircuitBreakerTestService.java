@@ -1,8 +1,8 @@
 package com.exit8.service;
 
 import com.exit8.exception.ApiException;
-import com.exit8.logging.LogEvent;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
@@ -40,18 +40,33 @@ public class CircuitBreakerTestService {
      * Circuit OPEN 시 호출
      */
     private String fallback(Throwable t) {
+
+        if (t instanceof CallNotPermittedException) {
+            log.warn(
+                    "event=CIRCUIT_OPEN circuit={} trace_id={}",
+                    CIRCUIT_NAME,
+                    MDC.get("trace_id")
+            );
+
+            throw new ApiException(
+                    "CIRCUIT_OPEN",
+                    "circuit breaker is open",
+                    HttpStatus.SERVICE_UNAVAILABLE
+            );
+        }
+
         log.warn(
-                "event={} circuit={} trace_id={} message={}",
-                LogEvent.CIRCUIT_OPEN,
+                "event=CIRCUIT_ERROR circuit={} trace_id={} cause={}",
                 CIRCUIT_NAME,
                 MDC.get("trace_id"),
-                t.getMessage()
+                t.getClass().getSimpleName()
         );
 
         throw new ApiException(
-                "CIRCUIT_OPEN",
-                "circuit breaker is open",
-                HttpStatus.SERVICE_UNAVAILABLE
+                "CIRCUIT_ERROR",
+                "temporary failure",
+                HttpStatus.INTERNAL_SERVER_ERROR
         );
     }
+
 }

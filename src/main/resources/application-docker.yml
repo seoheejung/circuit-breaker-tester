@@ -1,8 +1,12 @@
 spring:
+  config:
+    activate:
+      on-profile: docker
+
   datasource:
-    url: jdbc:postgresql://postgres:5432/appdb
-    username: admin
-    password: changeme
+    url: jdbc:postgresql://postgres:5432/${db.name}
+    username: ${db.username}
+    password: ${db.password}
 
   data:
     redis:
