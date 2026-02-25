@@ -1,5 +1,6 @@
 package com.exit8.service;
 
+import com.exit8.config.constants.CircuitNames;
 import com.exit8.exception.ApiException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
@@ -12,12 +13,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class CircuitBreakerTestService {
 
-    private static final String CIRCUIT_NAME = "testCircuit";
-
-    @CircuitBreaker(
-            name = CIRCUIT_NAME,
-            fallbackMethod = "fallback"
-    )
+    @CircuitBreaker(name = CircuitNames.TEST_CIRCUIT)
     public String callWithDelay() {
         try {
             // 일부러 timeout 유도
@@ -34,39 +30,6 @@ public class CircuitBreakerTestService {
                     HttpStatus.INTERNAL_SERVER_ERROR
             );
         }
-    }
-
-    /**
-     * Circuit OPEN 시 호출
-     */
-    private String fallback(Throwable t) {
-
-        if (t instanceof CallNotPermittedException) {
-            log.warn(
-                    "event=CIRCUIT_OPEN circuit={} trace_id={}",
-                    CIRCUIT_NAME,
-                    MDC.get("trace_id")
-            );
-
-            throw new ApiException(
-                    "CIRCUIT_OPEN",
-                    "circuit breaker is open",
-                    HttpStatus.SERVICE_UNAVAILABLE
-            );
-        }
-
-        log.warn(
-                "event=CIRCUIT_ERROR circuit={} trace_id={} cause={}",
-                CIRCUIT_NAME,
-                MDC.get("trace_id"),
-                t.getClass().getSimpleName()
-        );
-
-        throw new ApiException(
-                "CIRCUIT_ERROR",
-                "temporary failure",
-                HttpStatus.INTERNAL_SERVER_ERROR
-        );
     }
 
 }

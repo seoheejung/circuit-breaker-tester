@@ -36,7 +36,6 @@ public class LogAspect {
             // 정상 종료 이벤트
             log.info("event={} method={} durationMs={}", LogEvent.LOAD_END, method, duration);
 
-
             return result;
 
         } catch (Exception e) {

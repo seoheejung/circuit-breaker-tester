@@ -9,7 +9,7 @@ public class SystemHealthStatus {
 
     private String status;          // UP / DEGRADED / DOWN
     private String circuitBreaker;  // CLOSED / OPEN / HALF_OPEN
-    private long avgResponseTimeMs;
+    private Long avgResponseTimeMs;
 
     private String reason;          // null 가능
 }

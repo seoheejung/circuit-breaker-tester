@@ -17,3 +17,9 @@ logging:
   level:
     org.springframework.cloud.vault.config: DEBUG
     org.springframework.cloud.vault: DEBUG
+
+management:
+  health:
+    circuitbreakers:
+      enabled: true # 서킷 브레이커 상태를 /actuator/health에 포함
+      show-details: always

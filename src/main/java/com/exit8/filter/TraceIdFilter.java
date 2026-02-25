@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.UUID;
 
-@Component
 public class TraceIdFilter extends OncePerRequestFilter {
 
     // HTTP 요청 단위 trace_id 생성 및 MDC 전파용 Filter

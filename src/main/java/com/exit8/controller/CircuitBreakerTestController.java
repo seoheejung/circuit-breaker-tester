@@ -3,6 +3,7 @@ package com.exit8.controller;
 import com.exit8.dto.DefaultResponse;
 import com.exit8.service.CircuitBreakerTestService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -15,6 +16,6 @@ public class CircuitBreakerTestController {
     @GetMapping("/test")
     public DefaultResponse<String> test() {
         String result = circuitBreakerTestService.callWithDelay();
-        return DefaultResponse.success(200, result);
+        return DefaultResponse.success(HttpStatus.OK.value(), result);
     }
 }

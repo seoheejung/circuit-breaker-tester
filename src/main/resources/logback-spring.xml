@@ -22,13 +22,25 @@
                     <timeZone>Asia/Seoul</timeZone>
                     <pattern>yyyy-MM-dd'T'HH:mm:ss.SSSXXX</pattern>
                 </timestamp>
-                <loggerName/>
-                <logLevel/>
-                <threadName/>
+                <logLevel/>          <!-- level -->
                 <message/>
-                <mdc/>
+                <mdc/>               <!-- trace_id -->
+                <stackTrace>
+                    <fieldName>stack_trace</fieldName>
+                    <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                        <maxDepthPerThrowable>3</maxDepthPerThrowable> <maxLength>400</maxLength>
+
+                        <exclude>^sun\.reflect\..*</exclude>
+                        <exclude>^java\.lang\.reflect\..*</exclude>
+                        <exclude>^jdk\.internal\.reflect\..*</exclude> <exclude>^net\.sf\.cglib\..*</exclude>
+                        <exclude>^org\.springframework\..*</exclude>
+                        <exclude>.*SpringCGLIB.*</exclude>
+                        <exclude>.*NativeMethodAccessorImpl.*</exclude> <rootCauseFirst>true</rootCauseFirst>
+                        <shortenedClassNameLength>1</shortenedClassNameLength>
+                    </throwableConverter>
+                </stackTrace>
+                <arguments/>
             </providers>
-            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
         </encoder>
     </appender>
 
@@ -49,13 +61,23 @@
                     <pattern>yyyy-MM-dd'T'HH:mm:ss.SSSXXX</pattern>
                 </timestamp>
                 <logLevel/>          <!-- level -->
-                <threadName/>
                 <message/>
                 <mdc/>               <!-- trace_id -->
+                <stackTrace>
+                    <fieldName>stack_trace</fieldName>
+                    <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                        <maxDepthPerThrowable>3</maxDepthPerThrowable> <maxLength>400</maxLength>
+
+                        <exclude>^sun\.reflect\..*</exclude>
+                        <exclude>^java\.lang\.reflect\..*</exclude>
+                        <exclude>^jdk\.internal\.reflect\..*</exclude> <exclude>^net\.sf\.cglib\..*</exclude>
+                        <exclude>^org\.springframework\..*</exclude>
+                        <exclude>.*SpringCGLIB.*</exclude>
+                        <exclude>.*NativeMethodAccessorImpl.*</exclude> <rootCauseFirst>true</rootCauseFirst>
+                        <shortenedClassNameLength>1</shortenedClassNameLength>
+                    </throwableConverter>
+                </stackTrace>
                 <arguments/>
-                <customFields>
-                    {"service":"service-a-backend"}
-                </customFields>
             </providers>
         </encoder>
     </appender>

@@ -17,9 +17,7 @@ out/
 
 # shell
 deploy.bat
-deploy.ps1
 setup_vault.bat
-setup_vault.ps1
 
 # gradle temp
 gradle/wrapper/temp
