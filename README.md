@@ -1,4 +1,4 @@
-# EXIT8 – Load & Observability Test Backend
+# Load & Observability Test Backend
 
 > Spring Boot 기반 단일 API 서비스에서   
 > 의도적 부하, 서킷 브레이커, 관측(Observability)을 테스트하기 위한 백엔드 프로젝트
