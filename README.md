@@ -6,16 +6,15 @@
 ---
 
 ## 1. 프로젝트 목적
+> 본 프로젝트는 단순 CRUD API 구현이 아닌,    
+> 시스템의 **임계점(Breaking Point)**을 탐색하고 방어 기제를 검증하는 것을 목적으로 한다.
 
-이 프로젝트는 단순 CRUD API가 아니라, 
-1. 의도적으로 시스템 부하를 발생시키고
-2. 서킷 브레이커가 언제 동작하는지 확인하며
-3. Prometheus(Grafana 연계 전제)로 상태를 시각화
-4. Docker 단일 서버 환경에서의 한계를 체험
+1. 의도적 부하 생성: CPU, DB 등 주요 자원에 부하를 가해 시스템 지연 유도
+2. 방어 기제 검증: Resilience4j 서킷 브레이커와 Rate Limit의 트리거 조건 및 복구 프로세스 실증
+3. 관측성(Observability) 확보: Prometheus 및 Snapshot API를 통해 장애 상황을 데이터로 시각화
+4. 인프라 한계 체험: Docker 단일 노드 환경에서 자원 제약에 따른 시스템 거동 분석
 
-하는 것을 목적으로 한다.
-
-> ⚠️ 성능 최적화가 목적이 아니고, “시스템이 망가지기 직전 어떤 일이 벌어지는지”를 관측하는 테스트용 백엔드
+⚠️ 주의: 성능 최적화가 아닌, **“시스템이 망가지기 직전 어떤 일이 벌어지는지”**를 관측하기 위한 테스트 전용 백엔드
 
 ---
 
@@ -60,26 +59,19 @@ services/service-a/backend/
 
 ## 4. 주요 기능
 
-### 부하 시나리오 API
-- CPU busy-loop 부하
-- DB READ 반복 부하 (Redis 캐시 적용 가능)
-- DB WRITE 반복 부하
-- 모든 부하는 상한값 강제 적용
+### 부하 시나리오 (Fault Injection)
+- CPU Load: Busy-loop 연산을 통한 실제 CPU 점유율 상승 유도
+- DB Read/Write: SELECT/INSERT 반복 수행을 통한 커넥션 풀 고갈 및 지연 재현
+- 캐시 전략 테스트: Redis 캐시 적용 여부에 따른 DB 부하 변동 관측
 
-### 2단계 방어 구조
-- 1차: IP 기반 Rate Limit
-- 2차: Resilience4j CircuitBreaker
+### 2단계 방어 체계 (Defense Mechanism)
+- 1차 방어: IP 기반 Rate Limit (반복적 트래픽 차단)
+- 2차 보호: Resilience4j CircuitBreaker (장애 전파 방지 및 서비스 격리)
 
-### Observability
-- Prometheus 메트릭 노출
-- SystemSnapshot API
-- RecentRequests API
-- trace_id 기반 요청 추적
-
-### 실험 재현성 보장
-- CircuitBreaker 고정 설정
-- Redis TTL 고정
-- Docker 자원 고정
+### 실시간 관측 (Observability)
+- Trace Tracking: 모든 요청에 고유 trace_id를 부여하여 전구간 흐름 추적
+- Snapshot API: 현재 시스템 상태(서킷 상태, 풀 가용량 등)의 즉각적인 스냅샷 제공
+- Metric Exposure: Micrometer 기반 메트릭을 Prometheus 포맷으로 노출
 
 ---
 
@@ -107,46 +99,12 @@ curl http://localhost:8080/actuator/health
 ---
 
 ## 6. 테스트 불변식
+> 정밀한 계측을 위해 아래 설정값은 실험 도중 임의로 변경하지 않는다.
 
-- CircuitBreaker 설정은 테스트 간 변경하지 않는다.
-- Redis TTL은 5분으로 고정한다.
-- JMeter Thread / Delay 값은 테스트 단위로 고정한다.
-- Docker 자원(CPU/Mem 제한)은 테스트 간 변경하지 않는다.
-- HikariCP 풀/타임아웃 설정은 테스트 간 변경하지 않는다. (본 실험에서는 CB 임계 해석에 직접 영향)
-
-### CircuitBreaker 실험 설정
-
-#### 1. 공통(configs.default)
-- `slidingWindowType`: `COUNT_BASED`
-    - 최근 **N개 호출** 기준으로 상태 평가
-- `slidingWindowSize`: **30**
-    - 최근 **30개 호출**을 평가 윈도우로 사용
-- `minimumNumberOfCalls`: **30**
-    - 최소 **30개 호출**이 쌓여야 failure/slow-rate 계산 시작
-- `failureRateThreshold`: **50%**
-    - 최근 30개 중 **실패가 50% 이상**이면 OPEN
-    - 즉, **15건 이상 실패 시 OPEN**
-
-#### 2. 인스턴스(testCircuit)
-- `slowCallDurationThreshold`: **3s (3000ms)**
-    - **3초 초과 호출**은 slow-call로 분류
-- `slowCallRateThreshold`: **50%**
-    - 최근 30개 중 **slow-call이 50% 이상**이면 OPEN
-    - 즉, **15건 이상이 3초 초과면 OPEN**
-- `waitDurationInOpenState`: **10s**
-    - OPEN 상태를 **10초 유지** 후 HALF_OPEN 전환 가능
-- `automaticTransitionFromOpenToHalfOpenEnabled`: **true**
-    - OPEN → HALF_OPEN 자동 전환 활성화
-- `permittedNumberOfCallsInHalfOpenState`: **5**
-    - HALF_OPEN 상태에서 **5건만 통과**시켜 복구 여부 판단
-
-#### 3. HikariCP (DB 커넥션 풀)
-- `maximumPoolSize`: **50**
-- `connectionTimeout`: **5s (5000ms)**
-    - 풀 고갈 시 **최대 5초 대기 후 예외** → 위 record-exceptions에 의해 실패로 집계될 수 있음
-- `minimumIdle`: 10
-- `validationTimeout`: 2s
-- `leakDetectionThreshold`: 10s
+- CircuitBreaker: slidingWindowSize: 30, failureRateThreshold: 50% (15건 실패 시 OPEN)
+- HikariCP: maximumPoolSize: 50, connectionTimeout: 5s
+- Redis: TTL은 5분으로 고정하여 자연 만료 상황 통제
+- Resource: Docker CPU/Memory 제한값을 테스트 시나리오별로 고정
 
 ---
 
