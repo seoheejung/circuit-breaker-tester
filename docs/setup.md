@@ -9,34 +9,31 @@
 - docker : Docker 네트워크 기반 실행 환경 (컨테이너 간 통신 전제)
 
 ```
+# 로컬 실행 예시
 SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 ```
 - Gradle `bootRun` 기본 프로필은 `local`
-- 실행 환경 구분은 `SPRING_PROFILES_ACTIVE` 기준
-- Vault 연동 여부와 관계없이 프로필 전략은 동일
-- Vault 접근 정보는 실행 시점에 환경 변수로 주입
+- Vault 인증 방식은 환경 변수(VAULT_AUTH)에 따라 TOKEN 또는 APPROLE로 전환 가능
+- 로컬 개발 시에는 관리 편의를 위해 TOKEN 방식을 기본으로 권장
 
 ---
 
 ## 2. Docker 기반 개발 환경
 
-### Spring Boot 애플리케이션 Docker 이미지화
+### Multi-stage 빌드 및 이미지 최적화
 - Gradle 기반 Spring Boot 애플리케이션을 Docker 이미지로 패키징
 - 빌드 단계와 실행 단계를 분리한 **Multi-stage 빌드 적용으로 이미지 용량 최소화**
-- 최종 이미지에는 실행에 필요한 JAR 파일만 포함
-- Build Stage
-  - eclipse-temurin:17-jdk-alpine 기반
-  - Gradle Wrapper를 사용하여 애플리케이션 빌드
-- Runtime Stage
-  - 빌드 단계에서 생성된 JAR만 복사하여 실행
-  - curl을 설치하여 /actuator/health 기반 Docker Healthcheck 지원
-- Docker Healthcheck와 Spring Actuator를 연계한 컨테이너 생존 상태 확인 가능
+- Build Stage: eclipse-temurin:17-jdk-alpine 및 Gradle Wrapper 활용
+- Runtime Stage: 가벼운 JRE 환경과 curl을 포함하여 Healthcheck 지원
+- 설계 원칙: 이미지 용량 최소화 및 실행에 필요한 최소 권한/파일만 포함
 
 <br>
 
-### Docker Healthcheck & Spring Actuator 설계 원칙
-- docker-compose를 수정하지 않는 것을 전제로 Spring Actuator Health 동작 설계
-- docker-compose Healthcheck는 /actuator/health 기준으로 HTTP 응답 가능 여부(Liveness) 만 판단
+### Docker Healthcheck & Spring Actuator 설계
+
+#### 도커 컨테이너의 생존(Liveness) 판단 기준을 명확히 분리
+- Docker Healthcheck: `/actuator/health`의 HTTP 응답 여부만 확인 (프로세스 생존 위주)
+- Spring Actuator: 상세 컴포넌트(DB, Redis, CB) 상태를 포함하되, `docker` 프로필에서는 재시작 루프 방지를 위해 의존성 장애가 컨테이너 상태에 영향을 주지 않도록 설정
 
 ```
 healthcheck:
@@ -94,7 +91,6 @@ management:
 | VAULT_ROLE_ID | AppRole Role ID |
 | VAULT_SECRET_ID | AppRole Secret ID |
 
-
 ---
 
 ##  4. 로컬 Docker 테스트 절차
@@ -114,7 +110,8 @@ docker volume create redis_data
 <br>
 
 ### DB 및 인프라 컨테이너 실행
-- PostgreSQL
+
+#### PostgreSQL
 ```
 # 테스트 환경 전용 설정 (운영에서는 절대 사용 금지)
 docker run -d --name postgres \
@@ -137,14 +134,14 @@ GRANT CONNECT ON DATABASE appdb TO admin;
 GRANT USAGE, CREATE ON SCHEMA public TO admin;
 ```
 
-- Redis
+#### Redis
 ```
 docker run -d --name redis \
  --network db -p 6379:6379 redis:7-alpine redis-server \
  --maxmemory 256mb --maxmemory-policy allkeys-lru
 ```
 
-- Vault
+#### Vault
 ```
 docker run -d --name vault \
   -p 8200:8200 --network backend \
