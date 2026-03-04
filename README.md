@@ -163,6 +163,7 @@ curl http://localhost:8080/actuator/health
      - 테스트 API 보호
      - 오남용 방지
      - 최소 인증/인가 레이어 설계
+
 ---
 
 ## 📚 상세 문서
@@ -175,4 +176,10 @@ curl http://localhost:8080/actuator/health
 
 ### API 및 관측 계약  
 - [docs/api-and-observability.md](docs/api-and-observability.md)
-  
+
+---
+## 🔗 Load Test (JMeter)
+
+외부 트래픽 생성 및 부하 테스트 시나리오는 별도 레포에서 관리한다.
+
+- https://github.com/seoheejung/jmeter-traffic-generator
