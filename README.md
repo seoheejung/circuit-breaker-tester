@@ -212,7 +212,7 @@ curl http://localhost:8080/actuator/health
 ### 실행 환경 구성 및 인프라 연동
 - [docs/setup.md](docs/setup.md)
 
-### 시스템 아키텍처 및 설계 원칙  
+### 시스템 아키텍처 및 설계 원칙
 - [docs/architecture.md](docs/architecture.md)
 
 ### API 및 관측 계약  
